@@ -354,3 +354,333 @@ options => {
     }
 }
 ```
+### IMAGES
+- Eliminar imagenes que salen como `Background - image : url():`
+```javascript
+images => {
+    if (images[0] == null){
+        return []
+    } else {
+        var i = 0
+        images.forEach(x => {
+            images[i] = images[i].match(/(//cdn)([\S]+)(.(jpg|png|gif|jpeg|JPG|heic))/g)[0]
+            images[i] = "https:" + images[i]
+            var resolution = images[i].match(/([0-9]+)x(?=.(jpg|png|gif|jpeg|JPG|heic))/g)
+            if (resolution !==null){
+              images[i] = images[i].replace(/([0-9]+)x(?=.(jpg|png|gif|jpeg|JPG|heic))/g, "")
+            }
+            i++
+        })
+        return images
+    }
+} 
+```
+- Sacar imagenes desde el json `si no te sirve elimina la configuracion``Se pega desde la configuracion`
+```javascript
+"perVariantFns": [
+            {
+                fnName: 'customFunction',
+                fnParams: {
+                    fnCode: async (fnParams, page, extractorsDataObj) => {
+                        let data = extractorsDataObj.customData
+                        extractorsDataObj.customData.customImages = Object.fromEntries(data.variants.map((variant) => {
+                            return [variant.id, data.media.filter(media => media['media_type'] == "image" && media.alt.trim() === variant.featured_image.alt.trim()).map((media) => media.src)]
+                        }))[data.variantData.id]
+                    },
+                },
+            },
+        ]
+```
+- Agregar un 0 al final de una link image para que no lo borre
+
+```javascript
+(data, {input, config}, {_, Errors}) => {
+  if (data){
+    for(let i = 0; i < data.length; i++){
+      let j = data[i].length - 1
+      if (data[i][j] == '/'){
+        data[i] = data[i] + '0'
+      }
+    }
+  }
+  return data
+} 
+
+```
+
+
+
+### ADITIONAL SECTIONS
+`Texto/ Descripciones`
+- La descripción está vacía `más funcional`
+````javascript
+(data, {input, config}, {_, Errors}) => {
+  let content = data[0].content
+  content = content.replace(/(\n|\s|<\/?[\s\S]+?>)/g, '')
+  return content == '' ? []: data
+}
+````
+
+- Si la descripcion esta vacio
+```javascript
+(data, {input, config}, {_, Errors}) => {
+  let countString = data[0].content.replace(/\s+/g, '').length;
+  if (countString >= 87){
+      data[0].content = "<b></b>"
+      data[0].description_placement = DESCRIPTION_PLACEMENT.DISTANT
+      return data
+  }else{
+  return data
+  }
+}
+```
+`Texto/ Acordeones`
+- Quitar una sección en específico, Se puede usar para quitar acordeones o tablas de la main description
+
+```javascript
+adjacents=>{
+    let i=0;
+    adjacents.forEach(adjacent=>{
+        if(adjacent.content.includes("secciónAFiltrar")){
+            adjacents[i].content = adjacents[i].content.replace(/(?=<inicio)([\s\S])+(?<=</fin>)/g, "")
+        }
+        i++;
+    })
+    return adjacents
+}
+```
+- Quitar descripciones que están en blanco  (PREPROCESS) `otra si no funcionan`
+
+```javascript
+sync ({page}, config)=> {
+  await page.evaluate(() => {
+    let cont = document.querySelector("Aquí va tu selector")
+    if (cont.innerText){
+        cont.setAttribute("content", "true")
+    }
+  })
+}
+
+tuselector[content="true"]
+```
+- Para arreglar puntos de las listas
+```javascript
+data[i].content = data[i].content.replace(/<li>/g,'<a>')
+```
+`Broken bullets`
+- Arreglar formatos de lista
+```javascript
+adjacents=>{
+    let i=0;
+    adjacents.forEach(adjacent=>{
+        if(adjacent.content.includes("<ul>")){
+            adjacents[i].content = adjacents[i].content.replace(/<ul>/g, "<ul><br>")
+        }
+        i++;
+    })
+    return adjacents
+}
+```
+- Arreglar formato de lista `funciona mas`
+```javascript
+adjacents=>{
+    let i=0;
+    adjacents.forEach(adjacent=>{
+        if(adjacent.content.includes("<li")){
+            adjacents[i].content = adjacents[i].content.replace(/<li/g, "<br> <li")
+        }
+        if(adjacent.content.includes("<ul")){
+            adjacents[i].content = adjacents[i].content.replace(/<ul/g, "\n <ul")
+        }
+        i++;
+    })
+    return adjacents
+}
+```
+- Para fixear broken lines `para li`
+
+```javascript
+adjacents=>{
+    let i=0;
+    adjacents.forEach(adjacent=>{
+        if(adjacent.content.includes("li>")){
+            adjacents[i].content = adjacents[i].content.replace(/li>/g, "div>")
+        }
+        if(adjacent.content.includes("<li")){
+            adjacents[i].content = adjacents[i].content.replace(/<li/g, "<div")
+        }
+        i++;
+    })
+    return adjacents
+}
+
+```
+- para arreglar broken bullets (falta de saltos de linea)
+
+```javascript
+(data, {input, config}, {_, Errors}) => {
+  for(let i in data){
+  data[i].content = data[i].content.replace(/<ul>/g,'<ul><br>')
+  data[i].content = data[i].content.replace(/<\/li>/g,'</li><br>')
+  }
+  return data
+}
+```
+`Tablas`
+- Dar formato de tabla a span con saltos de linea
+```javascript
+des => {
+    if (des[0] == null){
+        return []
+    } else {
+        var i = 0
+        des.forEach(x => {
+            if (des[i].content.includes("<table")){
+                des[i].content = des[i].content.replace(/<tr/g, '<span')
+                des[i].content = des[i].content.replace(/<td/g, '<span')
+                des[i].content = des[i].content.replace(/<\/tr>/g, '<br> </span>')
+                des[i].content = des[i].content.replace(/<\/td>/g, '</span>')
+                des[i].content = des[i].content.replace(/<\/table>/g, '</span>')
+                des[i].content = des[i].content.replace(/<\/tbody>/g, '</span>')
+                des[i].content = des[i].content.replace(/<table/g, '<span')
+                des[i].content = des[i].content.replace(/<tbody/g, '<span')
+            }
+            if (des[i].content.includes("<ul")){
+                des[i].content = des[i].content.replace(/<ul>/g, "<ul><br>")
+            }
+            i++
+        })
+        return des
+    }
+}
+```
+
+- Dar formato a una tabla que no tiene su formato tabla por defecto
+```javascript
+des => {
+    if (des[0] == null){
+        return []
+    } else {
+        var i = 0
+        des.forEach(x => {
+            if (des[i].content.includes("<table")){
+                des[i].content = des[i].content.replace(/<tr/g, '<span')
+                des[i].content = des[i].content.replace(/<td/g, '<br> <span')
+                des[i].content = des[i].content.replace(/<\/tr>/g, '</span>')
+                des[i].content = des[i].content.replace(/<\/td>/g, '</span>')
+                des[i].content = des[i].content.replace(/<\/table>/g, '</span>')
+                des[i].content = des[i].content.replace(/<\/tbody>/g, '</span>')
+                des[i].content = des[i].content.replace(/<table/g, '<span')
+                des[i].content = des[i].content.replace(/<tbody/g, '<span')
+            }
+            i++
+        })
+        return des
+    }
+}
+```
+- Dar formato de tabla a una tabla en las descriptions: `opcion 1`
+```javascript
+ adjacents=>{
+     let i=0;
+     adjacents.forEach(adjacent=>{
+         if(adjacent.content.includes("<tbody")){
+             adjacents[i].content = adjacents[i].content.replace(/<p/g, "<span")
+             adjacents[i].content = adjacents[i].content.replace(/<\/p>/g, "<\/span>")
+             adjacents[i].content = adjacents[i].content.replace(/<table/g, "<div")
+             adjacents[i].content = adjacents[i].content.replace(/<\/table>/g, "<\/div>")
+             adjacents[i].content = adjacents[i].content.replace(/<tr/g, "<p")
+             adjacents[i].content = adjacents[i].content.replace(/<th/g, "<span")
+             adjacents[i].content = adjacents[i].content.replace(/<td/g, "<span")
+             adjacents[i].content = adjacents[i].content.replace(/<\/tr>/g, "<\/p>")
+             adjacents[i].content = adjacents[i].content.replace(/<\/th>/g, "<\/span>")
+             adjacents[i].content = adjacents[i].content.replace(/<\/td>/g, "<\/span>")
+         }
+         if(adjacent.content.includes("<li")){
+             adjacents[i].content = adjacents[i].content.replace(/<li/g, "<br> <li")
+         }
+         i++;
+     })
+     return adjacents
+ }
+```
+- Reestructurar tablas `opcion 2`
+
+```javascript
+adjacents=>{
+    let i=0;
+    adjacents.forEach(adjacent=>{
+        if(adjacent.content.includes("<table")){
+            adjacents[i].content = adjacents[i].content.replace(/<table/g, "<div")
+            adjacents[i].content = adjacents[i].content.replace(/<\/table>/g, "<\/div>")
+            adjacents[i].content = adjacents[i].content.replace(/<tr/g, "<p")
+            adjacents[i].content = adjacents[i].content.replace(/<th/g, "<span")
+            adjacents[i].content = adjacents[i].content.replace(/<td/g, "<span")
+            adjacents[i].content = adjacents[i].content.replace(/<\/tr>/g, "<\/p>")
+            adjacents[i].content = adjacents[i].content.replace(/<\/th>/g, "<\/span>")
+            adjacents[i].content = adjacents[i].content.replace(/<\/td>/g, "<\/span>")
+            adjacents[i].content = adjacents[i].content.replace(/<tbody>/g, "<span>")
+            adjacents[i].content = adjacents[i].content.replace(/<\/tbody>/g, "<\/span>")
+        }
+        i++;
+    })
+    return adjacents
+}
+```
+
+- Custom options quitar las tablas de SC `opcion 1`
+```javascript
+(data, {input, config}, {_, Errors}) => {
+  if(data[0]!== null){
+    while(data[0].content.includes('<table')){
+      data[0].content = data[0].content.replace(/(<table)([\s\S]+)(<\/table>)/g,'')
+    }
+    return data
+
+  }else{return[]}
+}
+
+```
+- Post process custom para quitar tablas de las descripciones `opcion 2`
+
+```javascript
+adjacents=>{
+    let i=0;
+    adjacents.forEach(adjacent=>{
+        if(adjacent.content.includes("<table")){
+            adjacents[i].content = adjacents[i].content.replace(/(<table)([\s\S]+)(<\/table>)/g, "")
+        }
+        i++;
+    })
+    return adjacents
+}
+
+```
+
+- Quitar tablas de las descripciones y que salga vacía si no hay texto para tomar
+
+```javascript
+async (data, {input, config}, {_, Errors}) => {
+let descriptionFromPDP = await input.page.evaluate(()=>{
+    let descriptionFromPDP = document.querySelector('.sf__accordion-content .ui-accordion-content')?.innerHTML?.replace(/(?=<table)([\s\S])+?(?<=<\/table>)/g, "").replace(/<[^>]+?>/g, "").replace(/(PRODUCT DETAILS|DESCRIPTION|&nbsp;)/gi, "");
+    let descriptionFromPDP2 = document.querySelector('.sf__accordion-content')?.innerHTML?.replace(/(?=<table)([\s\S])+?(?<=<\/table>)/g, "").replace(/<[^>]+?>/g, "").replace(/(PRODUCT DETAILS|DESCRIPTION|&nbsp;)/gi, "");
+    if(descriptionFromPDP?.toString().trim()){
+        return descriptionFromPDP?.toString().trim()
+    }
+    else{
+        return descriptionFromPDP2?.toString().trim()
+    }
+})
+  let i=0;
+    data.forEach(dat=>{
+        if((!descriptionFromPDP && data[i].content?.includes('<table'))|| !descriptionFromPDP){
+              data = undefined
+        }
+        else{
+             data[i].content = data[i].content.replace(/(?=<table)([\s\S])+(?<=<\/table>)/g, "")
+        }
+        i++;
+    })
+    return data
+}
+```
